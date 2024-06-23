@@ -75,6 +75,7 @@ func answer(requestLine string, conn net.Conn) {
 		conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + fmt.Sprint(len(value)) + "\r\n\r\n" + value))
 	} else if requestTarget == "/user-agent" {
 		fmt.Println("User-Agent target. ")
+		fmt.Println("User-Agent Header: ", userAgentHeader)
 		userAgent, err := extractUserAgent(userAgentHeader)
 		if err != nil {
 			fmt.Println("Error extracting User-Agent: ", err.Error())
