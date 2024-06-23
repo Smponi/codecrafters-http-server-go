@@ -62,8 +62,15 @@ func extractUserAgent(userAgentString string) (string, error) {
 // This function gets the request path
 func answer(requestLine string, conn net.Conn) {
 	requestTarget := strings.Split(requestLine, " ")[1]
-	userAgentHeader := strings.Split(requestLine, "\r\n")[3]
-	fmt.Println("UserAgent String: ", userAgentHeader)
+	// Getting User-Agent Header
+	userAgentHeader := ""
+	for _, header := range strings.Split(requestLine, "\r\n") {
+		if strings.HasPrefix(header, "User-Agent") {
+			fmt.Println("User-Agent Header: ", header)
+			userAgentHeader = header
+			break
+		}
+	}
 	if requestTarget == "/" {
 		fmt.Println("Known target. Returning 200")
 		// Send a HTTP 200 Response with HTTP/1.1
