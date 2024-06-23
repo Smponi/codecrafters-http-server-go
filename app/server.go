@@ -3,8 +3,9 @@ package main
 import (
 	"fmt"
 	// Uncomment this block to pass the first stage
-	// "net"
-	// "os"
+
+	"net"
+	"os"
 )
 
 func main() {
