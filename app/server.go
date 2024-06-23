@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -44,14 +45,25 @@ func main() {
 		// Split request line
 		// The String will looke like: "HTTP-Method /path/to/resource HTTP-Version"
 		// We need to split it by space and get the second element
-		requestTarget := strings.Split(requestLine, " ")[1]
-		fmt.Println(requestTarget)
-		answer(requestTarget, connection)
+
+		answer(requestLine, connection)
 	}
 }
 
+func extractUserAgent(userAgentString string) (string, error) {
+	if !strings.HasPrefix(userAgentString, "User-Agent") {
+		return "", errors.New("User-Agent header not found")
+	}
+	userAgent := userAgentString[12:]
+	fmt.Println("User-Agent: ", userAgent)
+	return userAgent, nil
+}
+
 // This function gets the request path
-func answer(requestTarget string, conn net.Conn) {
+func answer(requestLine string, conn net.Conn) {
+	requestTarget := strings.Split(requestLine, " ")[1]
+	userAgentHeader := strings.Split(requestLine, "\r\n")[3]
+	fmt.Println("UserAgent String: ", userAgentHeader)
 	if requestTarget == "/" {
 		fmt.Println("Known target. Returning 200")
 		// Send a HTTP 200 Response with HTTP/1.1
@@ -60,19 +72,15 @@ func answer(requestTarget string, conn net.Conn) {
 		fmt.Println("ECHO target. ")
 		value := requestTarget[6:]
 		fmt.Println("Value: ", value)
-		// Response should look like this
-		// // Status line
-		// HTTP/1.1 200 OK
-		// \r\n                          // CRLF that marks the end of the status line
-
-		// // Headers
-		// Content-Type: text/plain\r\n  // Header that specifies the format of the response body
-		// Content-Length: 3\r\n         // Header that specifies the size of the response body, in bytes
-		// \r\n                          // CRLF that marks the end of the headers
-
-		// // Response body
-		// abc                           // The string from the request
 		conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + fmt.Sprint(len(value)) + "\r\n\r\n" + value))
+	} else if requestTarget == "/user-agent" {
+		fmt.Println("User-Agent target. ")
+		userAgent, err := extractUserAgent(userAgentHeader)
+		if err != nil {
+			fmt.Println("Error extracting User-Agent: ", err.Error())
+			conn.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
+		}
+		conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(userAgent), userAgent)))
 	} else {
 		fmt.Println("Unknown target. Returning 404")
 		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
