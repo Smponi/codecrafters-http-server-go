@@ -203,11 +203,11 @@ func answer(requestLine string, conn net.Conn, directory string) {
 	} else if requestTarget == "/user-agent" {
 		fmt.Println("User-Agent target. ")
 		fmt.Println("User-Agent Header: ", headers["User-Agent"])
-		userAgent, err := extractUserAgent(headers["User-Agent"])
-		if err != nil {
-			fmt.Println("Error extracting User-Agent: ", err.Error())
+		if headers["User-Agent"] == "" {
+			fmt.Println("User-Agent header not present. Returning 400")
 			conn.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
 		}
+		userAgent := headers["User-Agent"]
 		conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(userAgent), userAgent)))
 	} else {
 		fmt.Println("Unknown target. Returning 404")
