@@ -207,7 +207,10 @@ func answer(requestLine string, conn net.Conn, directory string) {
 			fmt.Println("User-Agent header not present. Returning 400")
 			conn.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
 		}
+		// Save user-Agent from the headers in a variable. If it start with a space or a tab, remove it
 		userAgent := headers["User-Agent"]
+		userAgent = strings.Trim(userAgent, " ")
+		userAgent = strings.Trim(userAgent, "\t")
 		conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(userAgent), userAgent)))
 	} else {
 		fmt.Println("Unknown target. Returning 404")
