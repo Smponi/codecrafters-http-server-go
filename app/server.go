@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	// Uncomment this block to pass the first stage
@@ -73,16 +74,16 @@ func extractUserAgent(userAgentString string) (string, error) {
 
 // This function gets the request path
 func answer(requestLine string, conn net.Conn, directory string) {
-	requestTarget := strings.Split(requestLine, " ")[1]
-	// Getting User-Agent Header
-	userAgentHeader := ""
+	method, requestTarget := strings.Split(requestLine, " ")[0], strings.Split(requestLine, " ")[1]
+	// Save headers in map
+	headers := make(map[string]string)
 	for _, header := range strings.Split(requestLine, "\r\n") {
-		if strings.HasPrefix(header, "User-Agent") {
-			fmt.Println("User-Agent Header: ", header)
-			userAgentHeader = header
-			break
+		if strings.Contains(header, ":") {
+			headerParts := strings.Split(header, ":")
+			headers[headerParts[0]] = headerParts[1]
 		}
 	}
+	requestBody := strings.Split(requestLine, "\r\n\r\n")[1]
 	if requestTarget == "/" {
 		fmt.Println("Known target. Returning 200")
 		// Send a HTTP 200 Response with HTTP/1.1
@@ -94,53 +95,115 @@ func answer(requestLine string, conn net.Conn, directory string) {
 		conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + fmt.Sprint(len(value)) + "\r\n\r\n" + value))
 	} else if strings.HasPrefix(requestTarget, "/files/") {
 		fmt.Println("FILES target. ")
-		if directory == "" {
-			fmt.Println("No directory specified. Returning 500")
-			conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
-			return
-		}
-		fileName := directory + requestTarget[7:]
-		// Check if file exists
-		if _, err := os.Stat(fileName); os.IsNotExist(err) {
-			fmt.Println("File not found. Returning 404")
-			conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
-			return
-		}
-		// Read file
-		file, err := os.Open(fileName)
-		if err != nil {
-			fmt.Println("Error opening file: ", err.Error())
-			conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
-			return
-		}
-		fileInfo, err := file.Stat()
-		if err != nil {
-			fmt.Println("Error getting file info: ", err.Error())
-			conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
-			return
-		}
-		fileSize := fileInfo.Size()
-		// Read the file
-		fileContent := make([]byte, fileSize)
-		_, err = file.Read(fileContent)
-		if err != nil {
-			fmt.Println("Error reading file: ", err.Error())
-			conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
-			return
-		}
-		//Print the file content
-		fmt.Println("File content: ", string(fileContent))
-		// Close the file
-		file.Close()
+		fmt.Println("Directory: ", directory)
+		fmt.Print("Method", method)
+		if method == "GET" {
+			if directory == "" {
+				fmt.Println("No directory specified. Returning 500")
+				conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+				return
+			}
+			fileName := directory + requestTarget[7:]
+			// Check if file exists
+			if _, err := os.Stat(fileName); os.IsNotExist(err) {
+				fmt.Println("File not found. Returning 404")
+				conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+				return
+			}
+			// Read file
+			file, err := os.Open(fileName)
+			if err != nil {
+				fmt.Println("Error opening file: ", err.Error())
+				conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+				return
+			}
+			fileInfo, err := file.Stat()
+			if err != nil {
+				fmt.Println("Error getting file info: ", err.Error())
+				conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+				return
+			}
+			fileSize := fileInfo.Size()
+			// Read the file
+			fileContent := make([]byte, fileSize)
+			_, err = file.Read(fileContent)
+			if err != nil {
+				fmt.Println("Error reading file: ", err.Error())
+				conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+				return
+			}
+			//Print the file content
+			fmt.Println("File content: ", string(fileContent))
+			// Close the file
+			file.Close()
 
-		// Send file. Content-Type is application/octet-stream
-		// Content-Length is the size of the file in bytes
-		conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: " + fmt.Sprint(fileSize) + "\r\n\r\n" + string(fileContent)))
+			// Send file. Content-Type is application/octet-stream
+			// Content-Length is the size of the file in bytes
+			conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: " + fmt.Sprint(fileSize) + "\r\n\r\n" + string(fileContent)))
+		} else if method == "POST" {
+			// if strings.Contains(headers["Content-Type"], "application/octet-stream") {
+			// 	fmt.Println("Invalid Content-Type. Returning 400")
+			// 	fmt.Println("Content-Type: ", headers["Content-Type"])
+			// 	conn.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
+			// 	conn.Close()
+			// 	return
+			// }
+			//print all headers
+			for key, value := range headers {
+				fmt.Println("Key: ", key, "Value: ", value)
+			}
+			// Save content length from the headers in a variable. If it is not present, return 400. Content-Length is mandatory and is a number
+			contentLength := headers["Content-Length"]
+			println("Content-Length: ", contentLength)
+			if contentLength == "" {
+				fmt.Println("Invalid Content-Length. Returning 400")
+				fmt.Println("Content-Length: ", headers["Content-Length"])
+				conn.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
+				conn.Close()
+				return
+			}
+			fileSize, err := strconv.ParseInt(strings.Trim(contentLength, " "), 10, 64)
+			fmt.Println("File Size: ", fileSize)
+			if err != nil {
+				fmt.Println("Error in converting content-length to filesize")
+				fmt.Println("Error", err.Error())
+				conn.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
+				return
+			}
+			fileName := directory + requestTarget[7:]
+			fmt.Println("File Name: ", fileName)
+			// Create File. By default, it will overwrite the file if it exists
+			// There are fileSize bytes to be read from the request body
+			file, err := os.Create(fileName)
+			if err != nil {
+				fmt.Println("Error creating file: ", err.Error())
+				conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+				conn.Close()
+				return
+			}
+			fmt.Println("File created successfully")
+			// Write the file
+			_, err = file.Write([]byte(requestBody))
+			fmt.Println("File content: ", string(requestBody))
+			if err != nil {
+				fmt.Println("Error writing file: ", err.Error())
+				conn.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n\r\n"))
+				conn.Close()
+				return
+			}
+			fmt.Println("File wrote successfully. 201 Created")
+			// Close the file
+			file.Close()
+			fmt.Println("File closed successfully")
+			// Send a HTTP 201 Response with HTTP/1.1
+			conn.Write([]byte("HTTP/1.1 201 Created\r\n\r\n"))
+			conn.Close()
 
+		}
 	} else if requestTarget == "/user-agent" {
 		fmt.Println("User-Agent target. ")
-		fmt.Println("User-Agent Header: ", userAgentHeader)
-		userAgent, err := extractUserAgent(userAgentHeader)
+		fmt.Println("User-Agent Header: ", headers["User-Agent"])
+		userAgent, err := extractUserAgent(headers["User-Agent"])
 		if err != nil {
 			fmt.Println("Error extracting User-Agent: ", err.Error())
 			conn.Write([]byte("HTTP/1.1 400 Bad Request\r\n\r\n"))
