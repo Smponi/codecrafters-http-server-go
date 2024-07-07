@@ -37,7 +37,6 @@ func StartServer(directory string) {
 		fmt.Println("Failed to bind to port 4221")
 		os.Exit(1)
 	}
-	defer l.Close()
 
 	for {
 		connection, err := l.Accept()
@@ -50,7 +49,7 @@ func StartServer(directory string) {
 }
 
 func handleConnection(conn net.Conn, directory string) {
-	defer conn.Close()
+	defer fmt.Println("Closing connection")
 
 	fmt.Println(conn.RemoteAddr().String())
 
@@ -192,5 +191,10 @@ func saveFile(conn net.Conn, fileName, content string) {
 }
 
 func sendResponse(conn net.Conn, response string) {
+	fmt.Println(response)
 	conn.Write([]byte(response))
+	ererror := conn.Close()
+	if ererror != nil {
+		fmt.Println("Error closing connection:", ererror.Error())
+	}
 }
